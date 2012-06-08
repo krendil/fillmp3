@@ -10,16 +10,20 @@ import urllib.request
 units = {"ki" : 2**10, "mi" : 2**20, "gi": 2**30, "k" : 10**3, "m" : 10**6, "g" : 10**9}
 
 def main():
-	parser = argparse.ArgumentParser(description='Fill a music player with random songs.')
+	parser = argparse.ArgumentParser(description='Fill a music player with random songs from a playlist.')
 
+	parser.add_argument('-d', '--dry-run', action='store_true', default=False, dest='dry', 
+		help="Lists file names, but doesn't actually copy files. Implies -v")
 	parser.add_argument('-f', '--fill', action='store_true', default=True, dest='fill', 
 		help='Fills all the remaining free space on the device')
 	parser.add_argument('-n', '--number', action='store', dest='number', 
 		default=-1, 
 		help='Copies a certain number of songs')
+	parser.add_argument('-p', '--playlist', action='store', type=argparse.FileType('r'), dest='playlist', 
+		required=True,
+		help="The playlist file that contains a list of songs, in m3u format")
 	parser.add_argument('-s', '--size', action='store', type=str, dest='size',
 		help="Only copies up to a maximum amount of data in bytes. Accepts ISO/IEC unit abbreviations, e.g. MB, KiB etc")
-	parser.add_argument('-p', '--playlist', action='store', type=argparse.FileType('r'), dest='playlist')
 	parser.add_argument('-t', '--try-smaller-files', action='store_const', const=-1, default=0,
 		dest='try_small', metavar='tries',
 		help="Continues to try and find a smaller file to copy if one file doesn't fit.  May be slow")
@@ -29,8 +33,9 @@ def main():
 	parser.add_argument('target', metavar='target', type=str, help='The target directory on the device')
 	
 	args = parser.parse_args()
+	if(args.dry):
+		args.verbose = True
 	fill(args)
-
 
 def fill(args):
 	files = parse_playlist(args.playlist)
@@ -46,7 +51,7 @@ def fill(args):
 	#print(space_left)
 
 	tries = 0
-	while(files_left != 0):
+	while(files_left != 0 and len(files) > 0):
 		file_name = random.choice(list(files.keys()))
 		size = files[file_name]
 
@@ -58,8 +63,9 @@ def fill(args):
 			else:
 				tries += 1
 				continue
-
-		shutil.copy(file_name, args.target)
+		
+		if(not args.dry):
+			shutil.copy(file_name, args.target)
 		space_left -= size
 		files_left -= 1
 		tries = 0
