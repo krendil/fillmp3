@@ -1,6 +1,7 @@
 #!/usr/bin/python
 import argparse
 import os
+import os.path
 import random
 import re
 import shutil
@@ -12,29 +13,39 @@ units = {"ki" : 2**10, "mi" : 2**20, "gi": 2**30, "k" : 10**3, "m" : 10**6, "g" 
 def main():
 	parser = argparse.ArgumentParser(description='Fill a music player with random songs from a playlist.')
 
+	parser.add_argument('-p', '--parents', action='store', default=0, dest='context', type=int, 
+		help="Copies parent directory structure to a given height above each file")
+
 	parser.add_argument('-d', '--dry-run', action='store_true', default=False, dest='dry', 
 		help="Lists file names, but doesn't actually copy files. Implies -v")
+
 	parser.add_argument('-f', '--fill', action='store_true', default=True, dest='fill', 
-		help='Fills all the remaining free space on the device')
+		help='Fills all the remaining free space on the device (default behaviour)')
+
 	parser.add_argument('-n', '--number', action='store', dest='number', 
 		default=-1, 
 		help='Copies a certain number of songs')
-	parser.add_argument('-p', '--playlist', action='store', type=argparse.FileType('r'), dest='playlist', 
-		required=True,
-		help="The playlist file that contains a list of songs, in m3u format")
+
 	parser.add_argument('-s', '--size', action='store', type=str, dest='size',
 		help="Only copies up to a maximum amount of data in bytes. Accepts ISO/IEC unit abbreviations, e.g. MB, KiB etc")
+
 	parser.add_argument('-t', '--try-smaller-files', action='store_const', const=-1, default=0,
 		dest='try_small', metavar='tries',
 		help="Continues to try and find a smaller file to copy if one file doesn't fit.  May be slow")
+
 	parser.add_argument('-v', '--verbose', action='store_true', default=False, dest='verbose', 
 		help="Displays the filenames of the copied files")
 
 	parser.add_argument('target', metavar='target', type=str, help='The target directory on the device')
 	
+	parser.add_argument('playlist', action='store', type=argparse.FileType('r'), nargs='?', default=None, 
+		help="The playlist file that contains a list of songs, in m3u format")
+
 	args = parser.parse_args()
 	if(args.dry):
 		args.verbose = True
+	if(not args.playlist):
+		args.playlist = sys.stdin
 	fill(args)
 
 def fill(args):
@@ -64,14 +75,25 @@ def fill(args):
 				tries += 1
 				continue
 		
+		context = ""
+		source_name = os.path.dirname(file_name)
+
+		for i in range(0, args.context):
+			context = os.path.join(os.path.basename(source_name), context)
+			source_name = os.path.dirname(source_name)
+
+		target_name = os.path.join(context, os.path.basename(file_name))
+
 		if(not args.dry):
-			shutil.copy(file_name, args.target)
+			os.makedirs(os.path.join(args.target, context), mode=0o700, exist_ok=True)
+			shutil.copyfile(file_name, os.path.join(args.target, target_name))
+		
 		space_left -= size
 		files_left -= 1
 		tries = 0
 		
 		if(args.verbose):
-			print(file_name)
+			print(target_name)
 
 
 def parse_playlist(playlist):
